@@ -4,7 +4,7 @@
 #include <inc/types.h>
 #include <inc/stdio.h>
 #include <inc/stdarg.h>
-
+#include <inc/color.h>
 
 static void
 putch(int ch, int *cnt)
@@ -31,7 +31,7 @@ cprintf(const char *fmt, ...)
 	va_start(ap, fmt);
 	cnt = vcprintf(fmt, ap);
 	va_end(ap);
-
+	
 	return cnt;
 }
 
