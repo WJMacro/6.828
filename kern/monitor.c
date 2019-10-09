@@ -10,7 +10,7 @@
 #include <kern/console.h>
 #include <kern/monitor.h>
 #include <kern/kdebug.h>
-
+#include <kern/pmap.h>
 #define CMDBUF_SIZE	80	// enough for one VGA text line
 
 
@@ -24,8 +24,10 @@ struct Command {
 static struct Command commands[] = {
 	{ "help", "Display this list of commands", mon_help },
 	{ "kerninfo", "Display information about the kernel", mon_kerninfo },
+	{ "showmappings", "Display physical page mappings", mon_showmappings},
+	{ "modify", "Modify permission bits", mon_modify},
+	{ "dump","dump the contents of a range VA/PA address range ", mon_dump}
 };
-
 /***** Implementations of basic kernel monitor commands *****/
 
 int
@@ -79,11 +81,135 @@ mon_backtrace(int argc, char **argv, struct Trapframe *tf)
 		ebp = (unsigned int*)(*ebp);
 	}
 	return 0;
+}
+
+int
+mon_showmappings(int argc, char **argv, struct Trapframe *tf)
+{
+    if (argc<3)
+    {
+        cprintf("Error: not enough parameter\n");
+        return -1;
+    }
+    uintptr_t startADDR = strtol(argv[1],NULL,16);
+    uintptr_t endADDR = strtol(argv[2],NULL,16);
+    int cnt = ((endADDR - startADDR)>>12)&0xFFFFFF;
+    cprintf("     VADDR          PADDR     PTE_U  PTE_W  PTE_P\n");
+    for (int i = 0 ; i < cnt ; i++)
+    {
+        uintptr_t va = startADDR + i * 0x1000;
+        cprintf("   %x   ",va);
+        pte_t * entry ;
+        struct PageInfo *pginfo = page_lookup(kern_pgdir,(void *)va,&entry);
+        if (pginfo == NULL)
+        {
+            cprintf("       None     ");
+            cprintf("       None ");
+            cprintf("  None");
+            cprintf("  None\n");
+        }
+        else
+        {
+            physaddr_t pa = PTE_ADDR(*entry);
+            cprintf("       x    ",pa);
+            cprintf("     %d      %d     %d\n",1-!(*entry&PTE_U),1-!(*entry&PTE_W),1-!(*entry&PTE_P));
+        }
+    }   
+    return 0;
+}
+
+int
+mon_modify(int argc, char **argv, struct Trapframe *tf)
+{
+    	uintptr_t va = strtol(argv[1],NULL,16);
+    	pte_t * entry = pgdir_walk(kern_pgdir,(void *)va,0);
+	if (entry == NULL)
+    	{
+        	cprintf("Page table entry not exist!\n");
+        	return -1;
+    	}
+	char opt = argv[2][0];
+	if (opt != 'c' && opt != 's')
+	{
+		cprintf("Error: unknown option");
+		return -1;
+	}
+	char opnd = argv[3][0];
+	if (opnd != 'P' && opnd != 'U' && opnd != 'W')
+	{
+		cprintf("Error: unknown permission bit");
+		return -1;
+	}
+	if (opt == 'c')
+	{
+		if (opnd == 'P')
+		{
+			*entry = (*entry) & (~PTE_P);
+		}
+		if (opnd == 'U')
+		{
+			*entry = (*entry) & (~PTE_U);
+		}
+		if (opnd == 'W')
+		{
+			*entry = (*entry) & (~PTE_W);
+		}
+	}
+	else if (opt == 's')
+	{
+		if (opnd == 'P')
+		{
+			*entry = (*entry) | (PTE_P);
+		}
+		if (opnd == 'U')
+		{
+			*entry = (*entry) | (PTE_U);
+		}
+		if (opnd == 'W')
+		{
+			*entry = (*entry) | (PTE_W);
+		}
+	}
 	return 0;
 }
 
+int 
+mon_dump(int argc, char **argv, struct Trapframe *tf)
+{
+    if (argc<4)
+    {
+        cprintf("usage: mem [VA/PA(start)]  [VA/PA(end)] P|V \n");
+        return -1;
+    }
+    uintptr_t startADDR = strtol(argv[1],NULL,16);
+    uintptr_t endADDR = strtol(argv[2],NULL,16);
+    char type = argv[3][0];
+    if (type != 'P' && type != 'V')
+    {
+        cprintf("usage: mem [VA/PA(start)]  [VA/PA(end)] P|V \n");
+        return -1;
+    }
 
 
+    uintptr_t startVA,endVA;
+    if (type == 'P')
+    {
+        startADDR += KERNBASE;
+        endADDR += KERNBASE;
+    }
+    startADDR = ROUNDUP(startADDR,4);
+    endADDR = ROUNDUP(endADDR,4);
+    int cnt = ((endADDR - startADDR)>>2);;
+    cprintf("startADDR: x endADDR:x cnt:%d\n",startADDR,endADDR,cnt);
+    for ( int i = 0 ; i < cnt ; i++)
+    {
+        void ** va = (void **)startADDR + i;
+        cprintf("[x]:x\n",va,*va);
+    }
+
+    return 0;
+
+}
 /***** Kernel monitor command interpreter *****/
 
 #define WHITESPACE "\t\r\n "
