@@ -50,6 +50,7 @@
 .data
     .globl  vectors
 vectors:
+
 /*
  * Lab 3: Your code here for generating entry points for the different traps.
  */
