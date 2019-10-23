@@ -5,6 +5,7 @@
 #include <inc/kbdreg.h>
 #include <inc/string.h>
 #include <inc/assert.h>
+#include <inc/color.h>
 
 #include <kern/console.h>
 
@@ -164,8 +165,12 @@ cga_putc(int c)
 {
 	// if no attribute given, then use black on white
 	if (!(c & ~0xFF))
-		c |= 0x0700;
-
+	{
+		if (console_color == 0)
+			c |= 0x0700;
+		else
+			c |= console_color;
+	}
 	switch (c & 0xff) {
 	case '\b':
 		if (crt_pos > 0) {
@@ -190,7 +195,6 @@ cga_putc(int c)
 		crt_buf[crt_pos++] = c;		/* write the character */
 		break;
 	}
-
 	// What is the purpose of this?
 	if (crt_pos >= CRT_SIZE) {
 		int i;
