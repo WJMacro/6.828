@@ -111,7 +111,7 @@ mon_showmappings(int argc, char **argv, struct Trapframe *tf)
         else
         {
             physaddr_t pa = PTE_ADDR(*entry);
-            cprintf("       x    ",pa);
+            cprintf("       %x    ",pa);
             cprintf("     %d      %d     %d\n",1-!(*entry&PTE_U),1-!(*entry&PTE_W),1-!(*entry&PTE_P));
         }
     }   
